@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>蔵書ログ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- IndexedDB wrapper -->
+  <script src="https://cdn.jsdelivr.net/npm/dexie@4/dist/dexie.min.js"></script>
+
+  <!-- Quagga2 (barcode scanner) -->
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+  <div class="mx-auto max-w-md min-h-dvh px-4 pb-24 pt-4">
+    <!-- Top bar -->
+    <header class="flex items-center justify-between gap-3">
+      <h1 id="appTitle" class="text-xl font-semibold tracking-tight">蔵書ログ</h1>
+      <button id="goHomeTop"
+        class="rounded-xl bg-white px-3 py-2 text-sm font-medium shadow-sm ring-1 ring-slate-200 active:scale-[0.99]">
+        ホーム
+      </button>
+    </header>
+
+    <!-- Pages -->
+    <main class="mt-4">
+      <!-- Home -->
+      <section id="page-home" class="space-y-4">
+        <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <p class="text-sm text-slate-600 leading-relaxed">
+            ISBNを撮影して登録し、進捗を「未読・読書中・読了」で管理します。
+          </p>
+        </div>
+
+        <div class="grid gap-3">
+          <button id="btnToRegister"
+            class="rounded-2xl bg-slate-900 px-4 py-4 text-left text-white shadow-sm active:scale-[0.99]">
+            <div class="text-base font-semibold">書籍登録</div>
+            <div class="text-sm text-slate-200 mt-1">ISBNを撮影して登録</div>
+          </button>
+
+          <button id="btnToSearch"
+            class="rounded-2xl bg-white px-4 py-4 text-left shadow-sm ring-1 ring-slate-200 active:scale-[0.99]">
+            <div class="text-base font-semibold">蔵書検索</div>
+            <div class="text-sm text-slate-600 mt-1">書名・著者・ジャンルで検索</div>
+          </button>
+        </div>
+      </section>
+
+      <!-- Register -->
+      <section id="page-register" class="hidden space-y-4">
+        <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold">書籍登録</h2>
+            <button id="btnStartScan"
+              class="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white active:scale-[0.99]">
+              カメラ起動
+            </button>
+          </div>
+
+          <div id="scanWrap" class="hidden overflow-hidden rounded-2xl ring-1 ring-slate-200">
+            <div id="scanner" class="bg-black"></div>
+            <div class="flex gap-2 p-2 bg-white">
+              <button id="btnStopScan"
+                class="flex-1 rounded-xl bg-white px-3 py-2 text-sm font-medium ring-1 ring-slate-200 active:scale-[0.99]">
+                停止
+              </button>
+              <button id="btnClearIsbn"
+                class="flex-1 rounded-xl bg-white px-3 py-2 text-sm font-medium ring-1 ring-slate-200 active:scale-[0.99]">
+                クリア
+              </button>
+            </div>
+          </div>
+
+          <div class="grid gap-3">
+            <label class="text-sm font-medium text-slate-700">ISBN（13桁）</label>
+            <input id="isbnInput" inputmode="numeric" placeholder="例：978xxxxxxxxxx"
+              class="w-full rounded-xl bg-slate-50 px-3 py-3 text-base ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+            <button id="btnFetchMeta"
+              class="rounded-xl bg-white px-3 py-3 text-sm font-medium shadow-sm ring-1 ring-slate-200 active:scale-[0.99]">
+              書誌情報を取得
+            </button>
+          </div>
+
+          <div class="grid gap-3">
+            <label class="text-sm font-medium text-slate-700">ジャンル</label>
+            <input id="genreInput" placeholder="例：人工知能・機械学習"
+              class="w-full rounded-xl bg-slate-50 px-3 py-3 text-base ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          </div>
+
+          <div class="grid gap-3">
+            <label class="text-sm font-medium text-slate-700">書名</label>
+            <input id="titleInput" placeholder="書名"
+              class="w-full rounded-xl bg-slate-50 px-3 py-3 text-base ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          </div>
+
+          <div class="grid gap-3">
+            <label class="text-sm font-medium text-slate-700">著者名</label>
+            <input id="authorsInput" placeholder="著者名（複数可）"
+              class="w-full rounded-xl bg-slate-50 px-3 py-3 text-base ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          </div>
+
+          <div class="grid gap-3">
+            <label class="text-sm font-medium text-slate-700">出版社</label>
+            <input id="publisherInput" placeholder="出版社"
+              class="w-full rounded-xl bg-slate-50 px-3 py-3 text-base ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          </div>
+
+          <button id="btnSaveBook"
+            class="rounded-2xl bg-slate-900 px-4 py-4 text-base font-semibold text-white shadow-sm active:scale-[0.99]">
+            登録する
+          </button>
+
+          <p id="registerMsg" class="text-sm text-slate-600"></p>
+        </div>
+      </section>
+
+      <!-- Search -->
+      <section id="page-search" class="hidden space-y-4">
+        <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 space-y-3">
+          <h2 class="text-lg font-semibold">検索</h2>
+
+          <label class="text-sm font-medium text-slate-700">検索対象</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button data-field="title" class="searchFieldBtn rounded-xl bg-slate-900 text-white px-3 py-2 text-sm font-medium active:scale-[0.99]">書籍名</button>
+            <button data-field="authors" class="searchFieldBtn rounded-xl bg-white ring-1 ring-slate-200 px-3 py-2 text-sm font-medium active:scale-[0.99]">著者名</button>
+            <button data-field="genre" class="searchFieldBtn rounded-xl bg-white ring-1 ring-slate-200 px-3 py-2 text-sm font-medium active:scale-[0.99]">ジャンル</button>
+          </div>
+
+          <label class="text-sm font-medium text-slate-700">キーワード</label>
+          <input id="searchQuery" placeholder="例：ChatGPT"
+            class="w-full rounded-xl bg-slate-50 px-3 py-3 text-base ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+
+          <button id="btnDoSearch"
+            class="rounded-2xl bg-slate-900 px-4 py-4 text-base font-semibold text-white shadow-sm active:scale-[0.99]">
+            検索する
+          </button>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section id="page-results" class="hidden space-y-4">
+        <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold">検索結果</h2>
+            <span id="resultsCount" class="text-sm text-slate-600"></span>
+          </div>
+          <p id="resultsHint" class="mt-2 text-sm text-slate-600"></p>
+        </div>
+
+        <div id="resultsList" class="space-y-3"></div>
+      </section>
+
+      <!-- Detail -->
+      <section id="page-detail" class="hidden space-y-4">
+        <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 space-y-2">
+          <h2 id="dTitle" class="text-lg font-semibold leading-snug"></h2>
+          <p id="dAuthors" class="text-sm text-slate-700"></p>
+          <p id="dPublisher" class="text-sm text-slate-700"></p>
+
+          <div class="mt-3 grid gap-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-slate-700">進捗状況</span>
+              <select id="dStatus"
+                class="rounded-xl bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900">
+                <option value="未読">未読</option>
+                <option value="読書中">読書中</option>
+                <option value="読了">読了</option>
+              </select>
+            </div>
+
+            <div class="text-sm text-slate-700 space-y-1">
+              <div>読み始めの登録日：<span id="dStartedAt" class="text-slate-900"></span></div>
+              <div>読了日：<span id="dFinishedAt" class="text-slate-900"></span></div>
+              <div>登録完了日：<span id="dRegisteredAt" class="text-slate-900"></span></div>
+              <div>ジャンル：<span id="dGenre" class="text-slate-900"></span></div>
+              <div>ISBN：<span id="dIsbn" class="text-slate-900"></span></div>
+            </div>
+
+            <label class="mt-3 text-sm font-medium text-slate-700">メモ欄</label>
+            <textarea id="dMemo" rows="5" placeholder="気づき・要点など"
+              class="w-full rounded-xl bg-slate-50 px-3 py-3 text-base ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900"></textarea>
+
+            <button id="btnSaveDetail"
+              class="rounded-2xl bg-slate-900 px-4 py-4 text-base font-semibold text-white shadow-sm active:scale-[0.99]">
+              変更を保存
+            </button>
+
+            <p id="detailMsg" class="text-sm text-slate-600"></p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom nav -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur border-t border-slate-200">
+      <div class="mx-auto max-w-md px-4 py-3 grid grid-cols-3 gap-2">
+        <button id="goHome"
+          class="rounded-xl bg-white px-3 py-2 text-sm font-medium ring-1 ring-slate-200 active:scale-[0.99]">
+          ホーム
+        </button>
+        <button id="goRegister"
+          class="rounded-xl bg-white px-3 py-2 text-sm font-medium ring-1 ring-slate-200 active:scale-[0.99]">
+          書籍登録
+        </button>
+        <button id="goSearch"
+          class="rounded-xl bg-white px-3 py-2 text-sm font-medium ring-1 ring-slate-200 active:scale-[0.99]">
+          検索
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <script>
+    // -----------------------------
+    // Utilities
+    // -----------------------------
+    const $ = (id) => document.getElementById(id);
+    const pages = ["home","register","search","results","detail"];
+    const showPage = (name) => {
+      pages.forEach(p => $("page-" + p).classList.toggle("hidden", p !== name));
+      const titleMap = {
+        home: "蔵書ログ",
+        register: "書籍登録",
+        search: "検索",
+        results: "検索結果",
+        detail: "詳細"
+      };
+      $("appTitle").textContent = titleMap[name] || "蔵書ログ";
+      window.scrollTo({ top: 0, behavior: "instant" });
+    };
+
+    const toDateLabel = (iso) => iso ? new Date(iso).toLocaleString("ja-JP") : "未登録";
+
+    // -----------------------------
+    // Database (IndexedDB via Dexie)
+    // -----------------------------
+    const db = new Dexie("home_library_db_v1");
+    db.version(1).stores({
+      books: "++id,isbn13,title,authors,publisher,genre,status,registeredAt,startedAt,finishedAt"
+    });
+
+    async function seedIfEmpty() {
+      const count = await db.books.count();
+      if (count > 0) return;
+
+      await db.books.add({
+        isbn13: "",
+        title: "WebエンジニアのためのChatGPT Webアプリ開発術",
+        authors: "白辺 陽",
+        publisher: "翔泳社",
+        genre: "人工知能・機械学習",
+        status: "未読",
+        registeredAt: new Date().toISOString(),
+        startedAt: "",
+        finishedAt: "",
+        memo: ""
+      });
+    }
+
+    // -----------------------------
+    // Router (hash)
+    // -----------------------------
+    function go(route) {
+      location.hash = route;
+    }
+
+    async function renderRoute() {
+      const hash = location.hash.replace("#", "") || "home";
+      const [name, param] = hash.split(":");
+
+      if (name === "detail") {
+        const id = Number(param);
+        if (!Number.isFinite(id)) return showPage("home");
+        await loadDetail(id);
+        return showPage("detail");
+      }
+      showPage(name);
+    }
+
+    // -----------------------------
+    // ISBN meta fetch
+    // -----------------------------
+    async function fetchMetaByISBN(isbn13) {
+      const clean = (isbn13 || "").replace(/[^0-9X]/gi, "");
+      if (clean.length < 10) throw new Error("ISBNが短すぎます");
+
+      // openBD first
+      // https://api.openbd.jp/v1/get?isbn=XXXXXXXXXXXXX&pretty
+      try {
+        const url = "https://api.openbd.jp/v1/get?isbn=" + encodeURIComponent(clean);
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          const item = json && json[0];
+          if (item) {
+            const summary = item.summary || {};
+            const onix = item.onix || {};
+            const title = summary.title || "";
+            const publisher = summary.publisher || "";
+            const authors = summary.author || "";
+            if (title || publisher || authors) {
+              return { title, publisher, authors };
+            }
+          }
+        }
+      } catch (e) {}
+
+      // Fallback: Google Books
+      try {
+        const url = "https://www.googleapis.com/books/v1/volumes?q=isbn:" + encodeURIComponent(clean);
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          const v = json && json.items && json.items[0] && json.items[0].volumeInfo;
+          if (v) {
+            return {
+              title: v.title || "",
+              publisher: v.publisher || "",
+              authors: Array.isArray(v.authors) ? v.authors.join(" / ") : ""
+            };
+          }
+        }
+      } catch (e) {}
+
+      return { title: "", publisher: "", authors: "" };
+    }
+
+    // -----------------------------
+    // Scanner (Quagga2)
+    // -----------------------------
+    let scanning = false;
+
+    function startScan() {
+      if (scanning) return;
+      $("scanWrap").classList.remove("hidden");
+      $("registerMsg").textContent = "カメラを起動しました。背表紙のEAN-13バーコード（ISBN）を枠内に入れてください。";
+
+      Quagga.init({
+        inputStream: {
+          type: "LiveStream",
+          target: $("scanner"),
+          constraints: {
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        },
+        decoder: {
+          readers: ["ean_reader"] // EAN-13
+        },
+        locate: true
+      }, (err) => {
+        if (err) {
+          $("registerMsg").textContent = "カメラ起動に失敗しました。権限やHTTPS環境を確認してください。";
+          return;
+        }
+        scanning = true;
+        Quagga.start();
+      });
+
+      Quagga.offDetected();
+      Quagga.onDetected((data) => {
+        const code = data && data.codeResult && data.codeResult.code;
+        if (!code) return;
+
+        // EAN-13 should be 13 digits
+        if (!/^\d{13}$/.test(code)) return;
+
+        $("isbnInput").value = code;
+        stopScan();
+        $("registerMsg").textContent = "ISBNを読み取りました。必要なら「書誌情報を取得」を押してください。";
+      });
+    }
+
+    function stopScan() {
+      if (!scanning) {
+        $("scanWrap").classList.add("hidden");
+        return;
+      }
+      try { Quagga.stop(); } catch(e) {}
+      scanning = false;
+      $("scanWrap").classList.add("hidden");
+    }
+
+    // -----------------------------
+    // Register flow
+    // -----------------------------
+    async function saveBook() {
+      const isbn13 = $("isbnInput").value.trim();
+      const genre = $("genreInput").value.trim();
+      const title = $("titleInput").value.trim();
+      const authors = $("authorsInput").value.trim();
+      const publisher = $("publisherInput").value.trim();
+
+      if (!title) {
+        $("registerMsg").textContent = "書名は必須です。ISBN読み取り後に書誌情報取得を試すか、手入力してください。";
+        return;
+      }
+      if (!genre) {
+        $("registerMsg").textContent = "ジャンルは必須です。例：人工知能・機械学習";
+        return;
+      }
+
+      const now = new Date().toISOString();
+
+      // duplicate check by isbn13 if present
+      if (isbn13 && /^\d{13}$/.test(isbn13)) {
+        const existing = await db.books.where("isbn13").equals(isbn13).first();
+        if (existing) {
+          $("registerMsg").textContent = "このISBNは既に登録済みです。詳細画面へ移動します。";
+          go("detail:" + existing.id);
+          return;
+        }
+      }
+
+      const id = await db.books.add({
+        isbn13,
+        title,
+        authors,
+        publisher,
+        genre,
+        status: "未読",
+        registeredAt: now,
+        startedAt: "",
+        finishedAt: "",
+        memo: ""
+      });
+
+      $("registerMsg").textContent = "登録しました。";
+      go("detail:" + id);
+    }
+
+    async function fetchMeta() {
+      const isbn13 = $("isbnInput").value.trim();
+      if (!/^\d{10,13}$/.test(isbn13.replace(/[^0-9]/g, ""))) {
+        $("registerMsg").textContent = "ISBNが不正です。13桁を入力してください。";
+        return;
+      }
+      $("registerMsg").textContent = "書誌情報を取得中です…";
+      const meta = await fetchMetaByISBN(isbn13);
+      if (meta.title) $("titleInput").value = meta.title;
+      if (meta.authors) $("authorsInput").value = meta.authors;
+      if (meta.publisher) $("publisherInput").value = meta.publisher;
+
+      $("registerMsg").textContent = (meta.title || meta.authors || meta.publisher)
+        ? "書誌情報を反映しました。ジャンルを入力して登録してください。"
+        : "書誌情報が見つかりませんでした。手入力で登録できます。";
+    }
+
+    // -----------------------------
+    // Search flow
+    // -----------------------------
+    let searchField = "title";
+    let lastResults = [];
+
+    function setSearchField(field) {
+      searchField = field;
+      document.querySelectorAll(".searchFieldBtn").forEach(btn => {
+        const isActive = btn.dataset.field === field;
+        btn.classList.toggle("bg-slate-900", isActive);
+        btn.classList.toggle("text-white", isActive);
+        btn.classList.toggle("bg-white", !isActive);
+        btn.classList.toggle("ring-1", !isActive);
+        btn.classList.toggle("ring-slate-200", !isActive);
+      });
+    }
+
+    async function doSearch() {
+      const q = $("searchQuery").value.trim().toLowerCase();
+      if (!q) {
+        $("resultsHint").textContent = "キーワードを入力してください。";
+        $("resultsCount").textContent = "";
+        $("resultsList").innerHTML = "";
+        showPage("results");
+        return;
+      }
+
+      const all = await db.books.toArray();
+      const filtered = all.filter(b => String(b[searchField] || "").toLowerCase().includes(q));
+
+      lastResults = filtered;
+      await renderResults(q, searchField, filtered);
+      go("results");
+    }
+
+    async function renderResults(q, field, items) {
+      $("resultsCount").textContent = items.length + "件";
+      const fieldLabel = field === "title" ? "書籍名" : field === "authors" ? "著者名" : "ジャンル";
+      $("resultsHint").textContent = "検索対象：" + fieldLabel + " / キーワード：「" + q + "」";
+
+      const wrap = $("resultsList");
+      wrap.innerHTML = "";
+
+      if (items.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 text-sm text-slate-600";
+        empty.textContent = "該当する書籍がありません。";
+        wrap.appendChild(empty);
+        return;
+      }
+
+      items
+        .sort((a,b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""))
+        .forEach(b => {
+          const card = document.createElement("button");
+          card.className = "w-full text-left rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 active:scale-[0.99]";
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="font-semibold leading-snug">${escapeHtml(b.title || "")}</div>
+                <div class="mt-1 text-sm text-slate-600">${escapeHtml(b.authors || "")}</div>
+                <div class="mt-1 text-sm text-slate-600">${escapeHtml(b.publisher || "")}</div>
+              </div>
+              <span class="shrink-0 rounded-xl bg-slate-50 px-2.5 py-1 text-xs font-semibold ring-1 ring-slate-200">
+                ${escapeHtml(b.status || "未読")}
+              </span>
+            </div>
+          `;
+          card.addEventListener("click", () => go("detail:" + b.id));
+          wrap.appendChild(card);
+        });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    // -----------------------------
+    // Detail
+    // -----------------------------
+    let currentDetailId = null;
+
+    async function loadDetail(id) {
+      const b = await db.books.get(id);
+      if (!b) { go("home"); return; }
+      currentDetailId = id;
+
+      $("dTitle").textContent = b.title || "";
+      $("dAuthors").textContent = "著者名：" + (b.authors || "未登録");
+      $("dPublisher").textContent = "出版社：" + (b.publisher || "未登録");
+
+      $("dStatus").value = b.status || "未読";
+      $("dStartedAt").textContent = toDateLabel(b.startedAt);
+      $("dFinishedAt").textContent = toDateLabel(b.finishedAt);
+      $("dRegisteredAt").textContent = toDateLabel(b.registeredAt);
+
+      $("dGenre").textContent = b.genre || "未登録";
+      $("dIsbn").textContent = b.isbn13 || "未登録";
+
+      $("dMemo").value = b.memo || "";
+      $("detailMsg").textContent = "";
+    }
+
+    async function saveDetail() {
+      if (!currentDetailId) return;
+      const b = await db.books.get(currentDetailId);
+      if (!b) return;
+
+      const newStatus = $("dStatus").value;
+      const now = new Date().toISOString();
+
+      let startedAt = b.startedAt || "";
+      let finishedAt = b.finishedAt || "";
+
+      // auto set dates based on transitions
+      if (b.status !== "読書中" && newStatus === "読書中" && !startedAt) startedAt = now;
+      if (newStatus === "読了") finishedAt = now;
+      if (newStatus !== "読了") finishedAt = ""; // keep simple: if revert, clear
+
+      await db.books.update(currentDetailId, {
+        status: newStatus,
+        startedAt,
+        finishedAt,
+        memo: $("dMemo").value
+      });
+
+      await loadDetail(currentDetailId);
+      $("detailMsg").textContent = "保存しました。";
+    }
+
+    // -----------------------------
+    // Bindings
+    // -----------------------------
+    function bindNav() {
+      const toHome = () => go("home");
+      $("goHome").addEventListener("click", toHome);
+      $("goHomeTop").addEventListener("click", toHome);
+
+      $("goRegister").addEventListener("click", () => go("register"));
+      $("goSearch").addEventListener("click", () => go("search"));
+
+      $("btnToRegister").addEventListener("click", () => go("register"));
+      $("btnToSearch").addEventListener("click", () => go("search"));
+
+      $("btnStartScan").addEventListener("click", startScan);
+      $("btnStopScan").addEventListener("click", stopScan);
+      $("btnClearIsbn").addEventListener("click", () => { $("isbnInput").value = ""; });
+
+      $("btnFetchMeta").addEventListener("click", fetchMeta);
+      $("btnSaveBook").addEventListener("click", saveBook);
+
+      document.querySelectorAll(".searchFieldBtn").forEach(btn => {
+        btn.addEventListener("click", () => setSearchField(btn.dataset.field));
+      });
+
+      $("btnDoSearch").addEventListener("click", doSearch);
+
+      $("btnSaveDetail").addEventListener("click", saveDetail);
+
+      // stop scanning when leaving register page
+      window.addEventListener("hashchange", () => {
+        const h = location.hash.replace("#", "");
+        if (!h.startsWith("register")) stopScan();
+      });
+    }
+
+    // -----------------------------
+    // Init
+    // -----------------------------
+    (async function init() {
+      await seedIfEmpty();
+      bindNav();
+      setSearchField("title");
+      window.addEventListener("hashchange", renderRoute);
+      await renderRoute();
+    })();
+  </script>
+</body>
+</html>
